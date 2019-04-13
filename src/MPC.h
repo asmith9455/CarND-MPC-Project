@@ -6,7 +6,7 @@
 
 class MPC {
  public:
-  MPC();
+  MPC(::std::size_t N, ::std::double_t dt);
 
   virtual ~MPC();
 
@@ -14,6 +14,11 @@ class MPC {
   // Return the first actuations.
   std::vector<double> Solve(const Eigen::VectorXd &state, 
                             const Eigen::VectorXd &coeffs);
+
+    private:
+
+        ::std::size_t N_;
+        ::std::double_t dt_;
 };
 
 #endif  // MPC_H

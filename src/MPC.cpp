@@ -9,12 +9,6 @@
 using CppAD::AD;
 using Eigen::VectorXd;
 
-/**
- * TODO: Set the timestep length and duration
- */
-size_t N = 0;
-double dt = 0;
-
 // This value assumes the model presented in the classroom is used.
 //
 // It was obtained by measuring the radius formed by running the vehicle in the
@@ -27,14 +21,16 @@ double dt = 0;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
-class FG_eval {
- public:
+class FG_eval
+{
+public:
   // Fitted polynomial coefficients
   VectorXd coeffs;
   FG_eval(VectorXd coeffs) { this->coeffs = coeffs; }
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
-  void operator()(ADvector& fg, const ADvector& vars) {
+  void operator()(ADvector &fg, const ADvector &vars)
+  {
     /**
      * TODO: implement MPC
      * `fg` is a vector of the cost constraints, `vars` is a vector of variable 
@@ -48,10 +44,11 @@ class FG_eval {
 //
 // MPC class definition implementation.
 //
-MPC::MPC() {}
+MPC::MPC(::std::size_t N, ::std::double_t dt) : N_{N}, dt_{dt} {}
 MPC::~MPC() {}
 
-std::vector<double> MPC::Solve(const VectorXd &state, const VectorXd &coeffs) {
+std::vector<double> MPC::Solve(const VectorXd &state, const VectorXd &coeffs)
+{
   bool ok = true;
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
@@ -70,7 +67,8 @@ std::vector<double> MPC::Solve(const VectorXd &state, const VectorXd &coeffs) {
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
   Dvector vars(n_vars);
-  for (int i = 0; i < n_vars; ++i) {
+  for (int i = 0; i < n_vars; ++i)
+  {
     vars[i] = 0;
   }
 
@@ -84,7 +82,8 @@ std::vector<double> MPC::Solve(const VectorXd &state, const VectorXd &coeffs) {
   // Should be 0 besides initial state.
   Dvector constraints_lowerbound(n_constraints);
   Dvector constraints_upperbound(n_constraints);
-  for (int i = 0; i < n_constraints; ++i) {
+  for (int i = 0; i < n_constraints; ++i)
+  {
     constraints_lowerbound[i] = 0;
     constraints_upperbound[i] = 0;
   }
