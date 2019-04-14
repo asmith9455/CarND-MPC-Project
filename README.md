@@ -114,3 +114,11 @@ still be compilable with cmake and make./
 
 ## How to write a README
 A well written README file can enhance your project and portfolio and develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+
+# Description of MPC
+
+- Select a model that can be used to predict vehicle motion past the current state given actuator inputs over time.
+- Define error metrics (ex. cross track error, velocity error) that can be used to evaluate the optimality of a predicted path.
+- Select a time series of actuation commands from the space of all possible time series of actuation commands such that some linear combination of the error metrics is minimized.
+- Use the first set of acutation commands in that time series.
+- At the next time step, repeat.
