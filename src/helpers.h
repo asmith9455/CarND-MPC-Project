@@ -31,7 +31,7 @@ double ClosestDistanceFromPointToPath(
 
     Vec2D v{px, py};
     Vec2D p1{global_path_x_values[i], global_path_y_values[i]};
-    Vec2D p2{global_path_x_values[i+1], global_path_y_values[i+1]};
+    Vec2D p2{global_path_x_values[i + 1], global_path_y_values[i + 1]};
 
     const auto seg = p2 - p1;
     const auto join = p2 - v;
@@ -79,7 +79,7 @@ double AngleErrorAtClosestSegment(
   {
     Vec2D v{px, py};
     Vec2D p1{global_path_x_values[i], global_path_y_values[i]};
-    Vec2D p2{global_path_x_values[i+1], global_path_y_values[i+1]};
+    Vec2D p2{global_path_x_values[i + 1], global_path_y_values[i + 1]};
 
     const auto seg = p2 - p1;
     const auto join = p2 - v;
@@ -88,7 +88,7 @@ double AngleErrorAtClosestSegment(
     {
       throw ::std::runtime_error("~0 length segment");
     }
-    
+
     const auto seg_unit = seg / seg.norm();
 
     const auto join_along_seg = clamp(join.dot(seg_unit), 0.0, seg.norm()) * seg_unit;
@@ -146,6 +146,38 @@ double polyeval(const VectorXd &coeffs, double x)
   return result;
 }
 
+using Vec2D = ::Eigen::Matrix<double, 2, 1>;
+
+void TransformFromGlobalToEgo(
+    const Vec2D& ego_pos__global,
+    const Vec2D& ego_longitudinal_axis__global,
+    const Vec2D& ego_lateral_axis__global,
+    const ::std::vector<double> &line_x__global,
+    const ::std::vector<double> &line_y__global,
+    ::std::vector<double> &line_x__ego,
+    ::std::vector<double> &line_y__ego)
+{
+  assert(line_x__global.size() == line_y__global.size());
+
+  line_x__ego.clear();
+  line_y__ego.clear();
+
+  for (int i = 0; i < line_x__global.size(); ++i)
+  {
+    const Vec2D p{line_x__global[i], line_y__global[i]};
+    const Vec2D p_ego_coords
+      {
+        (p - ego_pos__global).dot(ego_longitudinal_axis__global), 
+        (p - ego_pos__global).dot(ego_lateral_axis__global)
+      };
+
+    line_x__ego.push_back(p_ego_coords(0));
+    line_y__ego.push_back(p_ego_coords(1));
+  }
+
+  assert(line_x__global.size() == line_y__global.size());
+}
+
 // Fit a polynomial.
 // Adapted from:
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
@@ -173,6 +205,21 @@ VectorXd polyfit(const VectorXd &xvals, const VectorXd &yvals, int order)
   auto result = Q.solve(yvals);
 
   return result;
+}
+
+VectorXd polyfit_vecs(const std::vector<double> &x_vals, const std::vector<double> &y_vals, int order)
+{
+  assert(x_vals.size() == y_vals.size());
+
+  ::Eigen::VectorXd x_vals_eigen(x_vals.size()), y_vals_eigen(y_vals.size());
+
+  for (int i = 0; i < x_vals.size(); ++i)
+  {
+    x_vals_eigen(i) = x_vals[i];
+    y_vals_eigen(i) = y_vals[i];
+  }
+
+  return polyfit(x_vals_eigen, y_vals_eigen, order);
 }
 
 #endif // HELPERS_H

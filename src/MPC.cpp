@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
+#include <numeric>
 
 using CppAD::AD;
 using Eigen::VectorXd;
@@ -35,13 +36,18 @@ public:
 
     const ::std::size_t x_start{0};
     const ::std::size_t y_start{N_};
-    const ::std::size_t psi_start{2 * N_};
-    const ::std::size_t v_start{3 * N_};
-    const ::std::size_t cte_start{4 * N_};
-    const ::std::size_t epsi_start{5 * N_};
-    const ::std::size_t delta_start{5 * N_ + (N_ - 1)};
-    const ::std::size_t a_start{5 * N_ + 2 * (N_ - 1)};
+    const ::std::size_t psi_start{y_start + N_};
+    const ::std::size_t v_start{psi_start + N_};
+    const ::std::size_t cte_start{v_start + N_};
+    const ::std::size_t epsi_start{cte_start + N_};
+    const ::std::size_t delta_start{epsi_start + N_};
+    const ::std::size_t a_start{delta_start + (N_ - 1)};
     const ::std::double_t ref_v{10.0};
+
+    AD<double> velocity_cost{0};
+    AD<double> cte_cost{0};
+    AD<double> epsi_cost{0};
+    AD<double> smooth_input_cost{0};
 
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -84,9 +90,16 @@ public:
 
     for (int k = 0; k < N_; ++k)
     {
-      fg[0] += ::CppAD::pow(vars[cte_start + k], 2);
-      fg[0] += ::CppAD::pow(vars[epsi_start + k], 2);
-      fg[0] += ::CppAD::pow(vars[v_start + k] - ref_v, 2);
+      const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - ref_v, 2);
+      const auto d_cte_cost = ::CppAD::pow(vars[cte_start + k], 2);
+      const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
+      velocity_cost += d_v_cost;
+      cte_cost += d_cte_cost;
+      epsi_cost += d_epsi_cost;
+
+      fg[0] += d_cte_cost;
+      fg[0] += d_epsi_cost;
+      fg[0] += d_v_cost;
     }
 
     for (int k = 0; k < (N_ - 1); ++k)
@@ -97,9 +110,60 @@ public:
 
     for (int k = 0; k < (N_ - 2); ++k)
     {
-      fg[0] += ::CppAD::pow(vars[delta_start + k + 1] - vars[delta_start + k], 2);
-      fg[0] += ::CppAD::pow(vars[a_start + k + 1] - vars[a_start + k], 2);
+      const auto d_smooth_input_cost_1 = ::CppAD::pow(vars[delta_start + k + 1] - vars[delta_start + k], 2);
+      const auto d_smooth_input_cost_2 = ::CppAD::pow(vars[a_start + k + 1] - vars[a_start + k], 2);
+
+      smooth_input_cost += d_smooth_input_cost_1 + d_smooth_input_cost_2;
+      fg[0] += d_smooth_input_cost_1;
+      fg[0] += d_smooth_input_cost_2;
     }
+
+    std::cout << "------------------" << std::endl;
+    std::cout << "------------------" << std::endl;
+    std::cout << "MPC Run, state is: " << std::endl;
+    std::cout << "(x, y): ";
+    for (int i = 0; i < N_; ++i)
+    {
+      std::cout << " (" << fg[1 + x_start + i] << ", " << fg[1 + y_start + i] << "),";
+    }
+    std::cout << std::endl;
+    std::cout << "psi: ";
+    for (int i = 0; i < N_; ++i)
+    {
+      std::cout << " " << fg[1 + psi_start + i] << ",";
+    }
+    std::cout << std::endl;
+    std::cout << "v (cost = " << velocity_cost << "): ";
+    for (int i = 0; i < N_; ++i)
+    {
+      std::cout << " " << fg[1 + v_start + i] << ",";
+    }
+    std::cout << std::endl;
+    std::cout << "cte (cost = " << cte_cost << "): ";
+    for (int i = 0; i < N_; ++i)
+    {
+      std::cout << " " << fg[1 + cte_start + i] << ",";
+    }
+    std::cout << std::endl;
+    std::cout << "epsi (cost = " << epsi_cost << "): ";
+    for (int i = 0; i < N_; ++i)
+    {
+      std::cout << " " << fg[1 + cte_start + i] << ",";
+    }
+    std::cout << std::endl;
+    std::cout << "delta: ";
+    for (int i = 0; i < N_ - 1; ++i)
+    {
+      std::cout << " " << vars[delta_start + i] << ",";
+    }
+    std::cout << std::endl;
+    std::cout << "accel: ";
+    for (int i = 0; i < N_ - 1; ++i)
+    {
+      std::cout << " " << vars[a_start + i] << ",";
+    }
+    std::cout << std::endl;
+    std::cout << "smooth input cost: " << smooth_input_cost << std::endl;
 
     /**
      * TODO: implement MPC
@@ -108,6 +172,7 @@ public:
      * NOTE: You'll probably go back and forth between this function and
      *   the Solver function below.
      */
+    std::cout << "cost is: " << fg[0] << std::endl;
   }
 
 private:
@@ -121,7 +186,7 @@ private:
 MPC::MPC(::std::size_t N, ::std::double_t dt) : N_{N}, dt_{dt} {}
 MPC::~MPC() {}
 
-::std::pair<double, double> MPC::Solve(const VectorXd &state, const VectorXd &coeffs, ::std::vector<double>& x_vals, ::std::vector<double>& y_vals)
+::std::pair<double, double> MPC::Solve(const VectorXd &state, const VectorXd &coeffs, ::std::vector<double> &x_vals, ::std::vector<double> &y_vals)
 {
   bool ok = true;
   typedef CPPAD_TESTVECTOR(double) Dvector;
@@ -154,20 +219,26 @@ MPC::~MPC() {}
 
   const ::std::size_t x_start{0};
   const ::std::size_t y_start{N_};
-  const ::std::size_t psi_start{2 * N_};
-  const ::std::size_t v_start{3 * N_};
-  const ::std::size_t cte_start{4 * N_};
-  const ::std::size_t epsi_start{5 * N_};
-  const ::std::size_t delta_start{5 * N_ + (N_ - 1)};
-  const ::std::size_t a_start{5 * N_ + 2 * (N_ - 1)};
+  const ::std::size_t psi_start{y_start + N_};
+  const ::std::size_t v_start{psi_start + N_};
+  const ::std::size_t cte_start{v_start + N_};
+  const ::std::size_t epsi_start{cte_start + N_};
+  const ::std::size_t delta_start{epsi_start + N_};
+  const ::std::size_t a_start{delta_start + (N_ - 1)};
 
-  for (int i = 0; i < N_; ++i)
+  for (int i = 0; i < delta_start; ++i)
   {
-    vars_lowerbound[delta_start + i] = -0.436332;
-    vars_upperbound[delta_start + i] = 0.436332;
+    vars_lowerbound[i] = -std::numeric_limits<double>::max();
+    vars_upperbound[i] = std::numeric_limits<double>::max();
   }
 
-  for (int i = 0; i < N_; ++i)
+  for (int i = 0; i < N_ - 1; ++i)
+  {
+    vars_lowerbound[delta_start + i] = -Lf * 0.436332;
+    vars_upperbound[delta_start + i] = Lf * 0.436332;
+  }
+
+  for (int i = 0; i < N_ - 1; ++i)
   {
     vars_lowerbound[a_start + i] = -1.0;
     vars_upperbound[a_start + i] = 1.0;
@@ -224,7 +295,10 @@ MPC::~MPC() {}
 
   // Cost
   auto cost = solution.obj_value;
-  std::cout << "Cost " << cost << std::endl;
+  std::cout << "BEST SOLUTION PROPERTIES: " << std::endl;
+  std::cout << "--success : " << (solution.status == CppAD::ipopt::solve_result<Dvector>::success) << std::endl;
+  std::cout << "--cost : " << cost << std::endl;
+  std::cout << "--(delta, accel) : (" << solution.x[delta_start] << ", " << solution.x[a_start] << ")" << std::endl;
 
   /**
    * TODO: Return the first actuator values. The variables can be accessed with
@@ -234,11 +308,11 @@ MPC::~MPC() {}
    *   creates a 2 element double vector.
    */
 
-  for(int i = 0; i < N_; ++i)
+  for (int i = 0; i < N_; ++i)
   {
     x_vals.push_back(solution.x[x_start + i]);
   }
-  for(int i = 0; i < N_; ++i)
+  for (int i = 0; i < N_; ++i)
   {
     y_vals.push_back(solution.x[y_start + i]);
   }

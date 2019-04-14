@@ -28,7 +28,7 @@ int main()
   uWS::Hub h;
 
   // MPC is initialized here!
-  MPC mpc{2, 1.0};
+  MPC mpc{100, 0.1};
 
   h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
@@ -54,108 +54,82 @@ int main()
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          /**
-           * TODO: Calculate steering angle and throttle using MPC.
-           * Both are in between [-1, 1].
-           */
-          double steer_value;
-          double throttle_value;
+          // prepare data ----------------------------------------
+          // -----------------------------------------------------
 
-          json msgJson;
+          using Vec2D = ::Eigen::Matrix<double, 2, 1>;
+
+          const Vec2D ego_longitudinal_axis__global{::std::cos(psi), ::std::sin(psi)};
+          const Vec2D ego_lateral_axis__global{::std::cos(psi + M_PI_2), ::std::sin(psi + M_PI_2)};
+          const Vec2D ego_pos__global{px, py};
+
+          const auto ref_line_x__global = ptsx;
+          const auto ref_line_y__global = ptsy;
+
+          std::vector<double> ref_line_x__ego, ref_line_y__ego;
+
+          TransformFromGlobalToEgo(
+              ego_pos__global, ego_longitudinal_axis__global, ego_lateral_axis__global,
+              ref_line_x__global, ref_line_y__global,
+              ref_line_x__ego, ref_line_y__ego);
+
+          const auto ref_line_polynomial__ego = polyfit_vecs(ref_line_x__ego, ref_line_y__ego, 3);
 
           ::Eigen::Matrix<double, 6, 1> state;
+          state(0) = 0;
+          state(1) = 0;
+          state(2) = 0;
+          state(3) = 0;
+          state(4) = ref_line_polynomial__ego(0);
+          state(5) = -atan(ref_line_polynomial__ego[1]);
 
-          if (ptsx.size() != ptsy.size())
-          {
-            throw ::std::runtime_error("Waypoint components vectors do not have the same size.");
-          }
+          // -----------------------------------------------------
+          // -----------------------------------------------------
 
-          const auto initial_cte = ClosestDistanceFromPointToPath(px, py, ptsx, ptsy);
-          const auto initial_epsi = AngleErrorAtClosestSegment(px, py, psi, ptsx, ptsy);
+          // run mpc----------------------------------------------
+          // -----------------------------------------------------
+          vector<double> mpc_x_vals__ego;
+          vector<double> mpc_y_vals__ego;
 
-          state(0) = px;
-          state(1) = py;
-          state(2) = psi;
-          state(3) = v;
-          state(4) = initial_cte;
-          state(5) = initial_epsi;
+          const auto commands = mpc.Solve(state, ref_line_polynomial__ego, mpc_x_vals__ego, mpc_y_vals__ego);
 
-          // Display the MPC predicted trajectory
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
+          const double delta = commands.first;
+          const double steer_cmd = -1.0 * delta / deg2rad(25.0);
+          const double accel = commands.second;
+          const double throttle_cmd = accel;
 
-          ::Eigen::VectorXd x_vals_eigen(ptsx.size()), y_vals_eigen(ptsy.size());
+          // -----------------------------------------------------
+          // -----------------------------------------------------
 
-          for (int i = 0; i < ptsx.size(); ++i)
-          {
-            x_vals_eigen(i) = ptsx[i];
-            y_vals_eigen(i) = ptsy[i];
-          }
-
-          const auto actuator_command = mpc.Solve(state, polyfit(x_vals_eigen, y_vals_eigen, 3), mpc_x_vals, mpc_y_vals);
-
-          steer_value = -1.0 * actuator_command.first / deg2rad(25.0);
-          throttle_value = actuator_command.second;
-
-          // Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
-
-          int closest_index_to_ego = -1;
-          double best_dist_to_ego = ::std::numeric_limits<double>::max();
-
-          next_y_vals.clear();
-
-          ::Eigen::MatrixXd reference_points(2, ptsx.size());
-
-          const ::Eigen::Matrix<double, 2, 1> ego_long{::std::cos(psi), ::std::sin(psi)};
-          const ::Eigen::Matrix<double, 2, 1> ego_lat{::std::cos(psi + M_PI_2), ::std::sin(psi + M_PI_2)};
-          const ::Eigen::Matrix<double, 2, 1> ego_pose{px, py};
-
-          for (int i = 0; i < ptsx.size(); ++i)
-          {
-            const ::Eigen::Matrix<double, 2, 1> p{ptsx[i], ptsy[i]};
-            const ::Eigen::Matrix<double, 2, 1> p_ego_coords{(p - ego_pose).dot(ego_long), (p - ego_pose).dot(ego_lat)};
-
-            next_x_vals.push_back(p_ego_coords(0));
-            next_y_vals.push_back(p_ego_coords(1));
-          }
-
-          if(mpc_x_vals.size() != mpc_y_vals.size())
-          {
-            throw ::std::runtime_error("mpc x and y sizes don't match");
-          }
-
-          std::vector<double> mpc_x_vals_ego_coords, mpc_y_vals_ego_coords;
-
-          for (int i = 0; i < mpc_x_vals.size(); ++i)
-          {
-            const ::Eigen::Matrix<double, 2, 1> p{mpc_x_vals[i], mpc_x_vals[i]};
-            const ::Eigen::Matrix<double, 2, 1> p_ego_coords{(p - ego_pose).dot(ego_long), (p - ego_pose).dot(ego_lat)};
-
-            mpc_x_vals_ego_coords.push_back(p_ego_coords(0));
-            mpc_y_vals_ego_coords.push_back(p_ego_coords(1));
-          }
+          // print debug info-------------------------------------
+          // -----------------------------------------------------
 
           std::cout << "--------------------------------------------------" << std::endl;
 
           std::cout << "ego pose (x,y,psi) is: (" << px << ", " << py << ", " << psi << ")" << std::endl;
-          std::cout << "steering command is: " << steer_value << std::endl;
-          std::cout << "throttle command is: " << throttle_value << std::endl << std::endl;
+          std::cout << "steering command is: " << steer_cmd << std::endl;
+          std::cout << "throttle command is: " << throttle_cmd << std::endl
+                    << std::endl;
           std::cout << "waypoints (global frame / ego frame) are: " << std::endl;
-          for(int i = 0; i < ptsx.size(); ++i)
+          for (int i = 0; i < ref_line_x__global.size(); ++i)
           {
-            std::cout << "-- (" << ptsx[i] << ", " << ptsy[i] << ")" << " ... ( " << next_x_vals[i] << ", " << next_y_vals[i] << ")" << std::endl;
+            std::cout << "-- (" << ref_line_x__global[i] << ", " << ref_line_y__global[i] << ")"
+                      << " ... ( " << ref_line_x__ego[i] << ", " << ref_line_y__ego[i] << ")" << std::endl;
           }
           std::cout << "mpc best path is: " << std::endl;
-          for(int i = 0; i < mpc_x_vals.size(); ++i)
+          for (int i = 0; i < mpc_x_vals__ego.size(); ++i)
           {
-            std::cout << "-- (" << mpc_x_vals[i] << ", " << mpc_y_vals[i] << ")" << " ... ( " << mpc_x_vals_ego_coords[i] << ", " << mpc_y_vals_ego_coords[i] << ")" << std::endl;
+            std::cout << " ( " << mpc_x_vals__ego[i] << ", " << mpc_y_vals__ego[i] << ")" << std::endl;
           }
 
           std::cout << std::endl;
           std::cout << "--------------------------------------------------" << std::endl;
-          std::cout << std::endl << std::endl << std::endl;
+          std::cout << std::endl
+                    << std::endl
+                    << std::endl;
+
+          // -----------------------------------------------------
+          // -----------------------------------------------------
 
           //convert mpc points into ego vehicle space
 
@@ -165,14 +139,15 @@ int main()
           // multiply steering angle by -1.0 since in the simulator, positive
           // steering angle means 'right turn', while in the MPC update step,
           // positive steering angle means 'left turn'
-          msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = throttle_value;
+          json msgJson;
+          msgJson["steering_angle"] = steer_cmd;
+          msgJson["throttle"] = throttle_cmd;
 
-          msgJson["mpc_x"] = mpc_x_vals_ego_coords;
-          msgJson["mpc_y"] = mpc_y_vals_ego_coords;
+          msgJson["mpc_x"] = mpc_x_vals__ego;
+          msgJson["mpc_y"] = mpc_y_vals__ego;
 
-          msgJson["next_x"] = next_x_vals;
-          msgJson["next_y"] = next_y_vals;
+          msgJson["next_x"] = ref_line_x__ego;
+          msgJson["next_y"] = ref_line_y__ego;
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           // std::cout << msg << std::endl;
