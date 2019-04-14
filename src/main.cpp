@@ -28,7 +28,7 @@ int main()
   uWS::Hub h;
 
   // MPC is initialized here!
-  MPC mpc{100, 0.1};
+  MPC mpc{30, 0.1};
 
   h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {

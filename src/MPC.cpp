@@ -22,14 +22,98 @@ using Eigen::VectorXd;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
+struct TrajectoryCosts
+{
+  using CostT = AD<double>;
+
+  TrajectoryCosts() : cte{0}, epsi{0}, velocity{0},
+                      delta_magnitude{0}, accel_magnitude{0},
+                      delta_smoothness{0}, accel_smoothness{0}
+  {
+  }
+
+  CostT TotalCost() const
+  {
+    return cte + epsi + velocity + delta_magnitude + accel_magnitude + delta_smoothness + accel_smoothness;
+  }
+
+  CostT cte;
+  CostT epsi;
+  CostT velocity;
+  CostT delta_magnitude;
+  CostT accel_magnitude;
+  CostT delta_smoothness;
+  CostT accel_smoothness;
+};
+
+using ADvector = CPPAD_TESTVECTOR(AD<double>);
+
+TrajectoryCosts CalculateTrajectoryCosts(const ADvector &vars, const ::std::size_t N)
+{
+  TrajectoryCosts costs;
+
+  const ::std::size_t x_start{0};
+  const ::std::size_t y_start{N};
+  const ::std::size_t psi_start{y_start + N};
+  const ::std::size_t v_start{psi_start + N};
+  const ::std::size_t cte_start{v_start + N};
+  const ::std::size_t epsi_start{cte_start + N};
+  const ::std::size_t delta_start{epsi_start + N};
+  const ::std::size_t a_start{delta_start + (N - 1)};
+  const ::std::double_t ref_v{10.0};
+
+  for (int k = 0; k < N; ++k)
+  {
+    const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - ref_v, 2);
+    const auto d_cte_cost = ::CppAD::pow(vars[cte_start + k], 2);
+    const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
+    costs.velocity += d_v_cost;
+    costs.cte += d_cte_cost;
+    costs.epsi += d_epsi_cost;
+  }
+
+  for (int k = 0; k < (N - 1); ++k)
+  {
+    const auto d_delta_mag_cost = ::CppAD::pow(vars[delta_start + k], 2);
+    const auto d_accel_mag_cost = ::CppAD::pow(vars[a_start + k], 2);
+    costs.delta_magnitude += d_delta_mag_cost;
+    costs.accel_magnitude += d_delta_mag_cost;
+  }
+
+  for (int k = 0; k < (N - 2); ++k)
+  {
+    const auto d_delta_smoothness = ::CppAD::pow(vars[delta_start + k + 1] - vars[delta_start + k], 2);
+    const auto d_accel_smoothness = ::CppAD::pow(vars[a_start + k + 1] - vars[a_start + k], 2);
+
+    costs.delta_smoothness += d_delta_smoothness;
+    costs.accel_smoothness += d_accel_smoothness;
+  }
+
+  return costs;
+}
+
+void PrintCostDebugInfo(const TrajectoryCosts &costs)
+{
+  ::std::cout << "------------------------------------------------" << ::std::endl;
+  ::std::cout << "Trajectory Costs Are: " << ::std::endl;
+  ::std::cout << "-- cte: " << costs.cte << ::std::endl;
+  ::std::cout << "-- epsi: " << costs.epsi << ::std::endl;
+  ::std::cout << "-- velocity: " << costs.velocity << ::std::endl;
+  ::std::cout << "-- delta_magnitude: " << costs.delta_magnitude << ::std::endl;
+  ::std::cout << "-- accel_magnitude: " << costs.accel_magnitude << ::std::endl;
+  ::std::cout << "-- delta_smoothness: " << costs.delta_smoothness << ::std::endl;
+  ::std::cout << "-- accel_smoothness: " << costs.accel_smoothness << ::std::endl;
+  ::std::cout << "------------------------------------------------" << ::std::endl;
+}
+
 class FG_eval
 {
 public:
+  using ADvector = CPPAD_TESTVECTOR(AD<double>);
   // Fitted polynomial coefficients
   VectorXd coeffs;
   FG_eval(VectorXd coeffs, ::std::size_t N, ::std::double_t dt) : N_{N}, dt_{dt} { this->coeffs = coeffs; }
 
-  typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector &fg, const ADvector &vars)
   {
     fg[0] = 0;
@@ -88,91 +172,11 @@ public:
           epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt_);
     }
 
-    for (int k = 0; k < N_; ++k)
-    {
-      const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - ref_v, 2);
-      const auto d_cte_cost = ::CppAD::pow(vars[cte_start + k], 2);
-      const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
-      velocity_cost += d_v_cost;
-      cte_cost += d_cte_cost;
-      epsi_cost += d_epsi_cost;
+    const auto costs = CalculateTrajectoryCosts(vars, N_);
 
-      fg[0] += d_cte_cost;
-      fg[0] += d_epsi_cost;
-      fg[0] += d_v_cost;
-    }
+    PrintCostDebugInfo(costs);
 
-    for (int k = 0; k < (N_ - 1); ++k)
-    {
-      fg[0] += ::CppAD::pow(vars[delta_start + k], 2);
-      fg[0] += ::CppAD::pow(vars[a_start + k], 2);
-    }
-
-    for (int k = 0; k < (N_ - 2); ++k)
-    {
-      const auto d_smooth_input_cost_1 = ::CppAD::pow(vars[delta_start + k + 1] - vars[delta_start + k], 2);
-      const auto d_smooth_input_cost_2 = ::CppAD::pow(vars[a_start + k + 1] - vars[a_start + k], 2);
-
-      smooth_input_cost += d_smooth_input_cost_1 + d_smooth_input_cost_2;
-      fg[0] += d_smooth_input_cost_1;
-      fg[0] += d_smooth_input_cost_2;
-    }
-
-    std::cout << "------------------" << std::endl;
-    std::cout << "------------------" << std::endl;
-    std::cout << "MPC Run, state is: " << std::endl;
-    std::cout << "(x, y): ";
-    for (int i = 0; i < N_; ++i)
-    {
-      std::cout << " (" << fg[1 + x_start + i] << ", " << fg[1 + y_start + i] << "),";
-    }
-    std::cout << std::endl;
-    std::cout << "psi: ";
-    for (int i = 0; i < N_; ++i)
-    {
-      std::cout << " " << fg[1 + psi_start + i] << ",";
-    }
-    std::cout << std::endl;
-    std::cout << "v (cost = " << velocity_cost << "): ";
-    for (int i = 0; i < N_; ++i)
-    {
-      std::cout << " " << fg[1 + v_start + i] << ",";
-    }
-    std::cout << std::endl;
-    std::cout << "cte (cost = " << cte_cost << "): ";
-    for (int i = 0; i < N_; ++i)
-    {
-      std::cout << " " << fg[1 + cte_start + i] << ",";
-    }
-    std::cout << std::endl;
-    std::cout << "epsi (cost = " << epsi_cost << "): ";
-    for (int i = 0; i < N_; ++i)
-    {
-      std::cout << " " << fg[1 + cte_start + i] << ",";
-    }
-    std::cout << std::endl;
-    std::cout << "delta: ";
-    for (int i = 0; i < N_ - 1; ++i)
-    {
-      std::cout << " " << vars[delta_start + i] << ",";
-    }
-    std::cout << std::endl;
-    std::cout << "accel: ";
-    for (int i = 0; i < N_ - 1; ++i)
-    {
-      std::cout << " " << vars[a_start + i] << ",";
-    }
-    std::cout << std::endl;
-    std::cout << "smooth input cost: " << smooth_input_cost << std::endl;
-
-    /**
-     * TODO: implement MPC
-     * `fg` is a vector of the cost constraints, `vars` is a vector of variable 
-     *   values (state & actuators)
-     * NOTE: You'll probably go back and forth between this function and
-     *   the Solver function below.
-     */
-    std::cout << "cost is: " << fg[0] << std::endl;
+    fg[0] = costs.TotalCost();
   }
 
 private:
@@ -318,6 +322,10 @@ MPC::~MPC() {}
   }
 
   assert(x_vals.size() == y_vals.size());
+
+  // const auto costs = CalculateTrajectoryCosts(vars, N_);
+
+  // PrintCostDebugInfo(costs);
 
   return {solution.x[delta_start], solution.x[a_start]};
 }
