@@ -126,19 +126,36 @@ int main()
             throw ::std::runtime_error("mpc x and y sizes don't match");
           }
 
+          std::vector<double> mpc_x_vals_ego_coords, mpc_y_vals_ego_coords;
+
           for (int i = 0; i < mpc_x_vals.size(); ++i)
           {
             const ::Eigen::Matrix<double, 2, 1> p{mpc_x_vals[i], mpc_x_vals[i]};
             const ::Eigen::Matrix<double, 2, 1> p_ego_coords{(p - ego_pose).dot(ego_long), (p - ego_pose).dot(ego_lat)};
 
-            mpc_x_vals[i] = p_ego_coords(0);
-            mpc_y_vals[i] = p_ego_coords(1);
+            mpc_x_vals_ego_coords.push_back(p_ego_coords(0));
+            mpc_y_vals_ego_coords.push_back(p_ego_coords(1));
           }
 
-          std::cout << "steering value is: " << steer_value <<std::endl;
-          std::cout << "throttle value is: " << throttle_value << std::endl;
+          std::cout << "--------------------------------------------------" << std::endl;
 
-          std::cout << std::endl << std::endl;
+          std::cout << "ego pose (x,y,psi) is: (" << px << ", " << py << ", " << psi << ")" << std::endl;
+          std::cout << "steering command is: " << steer_value << std::endl;
+          std::cout << "throttle command is: " << throttle_value << std::endl << std::endl;
+          std::cout << "waypoints (global frame / ego frame) are: " << std::endl;
+          for(int i = 0; i < ptsx.size(); ++i)
+          {
+            std::cout << "-- (" << ptsx[i] << ", " << ptsy[i] << ")" << " ... ( " << next_x_vals[i] << ", " << next_y_vals[i] << ")" << std::endl;
+          }
+          std::cout << "mpc best path is: " << std::endl;
+          for(int i = 0; i < mpc_x_vals.size(); ++i)
+          {
+            std::cout << "-- (" << mpc_x_vals[i] << ", " << mpc_y_vals[i] << ")" << " ... ( " << mpc_x_vals_ego_coords[i] << ", " << mpc_y_vals_ego_coords[i] << ")" << std::endl;
+          }
+
+          std::cout << std::endl;
+          std::cout << "--------------------------------------------------" << std::endl;
+          std::cout << std::endl << std::endl << std::endl;
 
           //convert mpc points into ego vehicle space
 
@@ -151,14 +168,14 @@ int main()
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
-          msgJson["mpc_x"] = mpc_x_vals;
-          msgJson["mpc_y"] = mpc_y_vals;
+          msgJson["mpc_x"] = mpc_x_vals_ego_coords;
+          msgJson["mpc_y"] = mpc_y_vals_ego_coords;
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+          // std::cout << msg << std::endl;
           // Latency
           // The purpose is to mimic real driving conditions where
           //   the car does actuate the commands instantly.
