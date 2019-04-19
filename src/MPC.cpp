@@ -61,7 +61,7 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
   const ::std::size_t epsi_start{cte_start + N};
   const ::std::size_t delta_start{epsi_start + N};
   const ::std::size_t a_start{delta_start + (N - 1)};
-  const ::std::double_t ref_v{10.0};
+  const ::std::double_t ref_v{20.0};
 
   ::std::vector<AD<double>> velocities;
 
@@ -375,6 +375,22 @@ MPC::~MPC() {}
   for (int i = 0; i < (N_ - 1); ++i)
   {
     ::std::cout << solution.x[a_start + i] << ", ";
+  }
+  ::std::cout << ::std::endl;
+
+  ::std::cout << "ctes: " << ::std::endl;
+
+  for (int i = 0; i < (N_); ++i)
+  {
+    ::std::cout << solution.x[cte_start + i] << ", ";
+  }
+  ::std::cout << ::std::endl;
+
+  ::std::cout << "epsis: " << ::std::endl;
+
+  for (int i = 0; i < (N_); ++i)
+  {
+    ::std::cout << solution.x[epsi_start + i] << ", ";
   }
   ::std::cout << ::std::endl;
 
