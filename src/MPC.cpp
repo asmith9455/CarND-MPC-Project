@@ -48,7 +48,8 @@ struct TrajectoryCosts
 
 using ADvector = CPPAD_TESTVECTOR(AD<double>);
 
-TrajectoryCosts CalculateTrajectoryCosts(const ADvector &vars, const ::std::size_t N)
+template <typename VarsVectorT>
+TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::size_t N, const double dt)
 {
   TrajectoryCosts costs;
 
@@ -62,15 +63,30 @@ TrajectoryCosts CalculateTrajectoryCosts(const ADvector &vars, const ::std::size
   const ::std::size_t a_start{delta_start + (N - 1)};
   const ::std::double_t ref_v{10.0};
 
+  ::std::vector<AD<double>> velocities;
+
+  velocities.push_back(vars[v_start]);
+
+  for (int k = 1; k < N; ++k)
+  {
+    velocities.push_back(velocities.back() + vars[a_start + k - 1] * dt);
+  }
+
+  ::std::cout << "velocities are: " << ::std::endl;
+
   for (int k = 0; k < N; ++k)
   {
-    const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - ref_v, 2);
+    ::std::cout << velocities[k] << ", ";
+
+    const auto d_v_cost = ::CppAD::pow(velocities[k] - ref_v, 2);
     const auto d_cte_cost = ::CppAD::pow(vars[cte_start + k], 2);
     const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
     costs.velocity += d_v_cost;
     costs.cte += d_cte_cost;
     costs.epsi += d_epsi_cost;
   }
+
+  ::std::cout << ::std::endl;
 
   for (int k = 0; k < (N - 1); ++k)
   {
@@ -172,9 +188,9 @@ public:
           epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt_);
     }
 
-    const auto costs = CalculateTrajectoryCosts(vars, N_);
+    const auto costs = CalculateTrajectoryCosts(vars, N_, dt_);
 
-    PrintCostDebugInfo(costs);
+    // PrintCostDebugInfo(costs);
 
     fg[0] = costs.TotalCost();
   }
@@ -251,6 +267,25 @@ MPC::~MPC() {}
    * TODO: Set lower and upper limits for variables.
    */
 
+  vars_lowerbound[x_start] = state(0);
+  vars_upperbound[x_start] = state(0);
+
+  vars_lowerbound[y_start] = state(1);
+  vars_upperbound[y_start] = state(1);
+
+  vars_lowerbound[psi_start] = state(2);
+  vars_upperbound[psi_start] = state(2);
+
+  vars_lowerbound[v_start] = state(3);
+  vars_upperbound[v_start] = state(3);
+
+  vars_lowerbound[cte_start] = state(4);
+  vars_upperbound[cte_start] = state(4);
+
+  vars_lowerbound[epsi_start] = state(5);
+  vars_upperbound[epsi_start] = state(5);
+  
+
   vars[x_start] = state(0);
   vars[y_start] = state(1);
   vars[psi_start] = state(2);
@@ -323,9 +358,25 @@ MPC::~MPC() {}
 
   assert(x_vals.size() == y_vals.size());
 
-  // const auto costs = CalculateTrajectoryCosts(vars, N_);
+  const auto costs = CalculateTrajectoryCosts(solution.x, N_, dt_);
 
-  // PrintCostDebugInfo(costs);
+  PrintCostDebugInfo(costs);
+
+  ::std::cout << "deltas: " << ::std::endl;
+
+  for (int i = 0; i < (N_ - 1); ++i)
+  {
+    ::std::cout << solution.x[delta_start + i] << ", ";
+  }
+  ::std::cout << ::std::endl;
+
+  ::std::cout << "accels: " << ::std::endl;
+
+  for (int i = 0; i < (N_ - 1); ++i)
+  {
+    ::std::cout << solution.x[a_start + i] << ", ";
+  }
+  ::std::cout << ::std::endl;
 
   return {solution.x[delta_start], solution.x[a_start]};
 }

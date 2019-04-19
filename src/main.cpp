@@ -79,7 +79,7 @@ int main()
           state(0) = 0;
           state(1) = 0;
           state(2) = 0;
-          state(3) = 0;
+          state(3) = v;
           state(4) = ref_line_polynomial__ego(0);
           state(5) = -atan(ref_line_polynomial__ego[1]);
 
