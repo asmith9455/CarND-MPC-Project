@@ -6,6 +6,7 @@
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
 #include <numeric>
+// #include "helpers.h"
 
 using CppAD::AD;
 using Eigen::VectorXd;
@@ -48,8 +49,19 @@ struct TrajectoryCosts
 
 using ADvector = CPPAD_TESTVECTOR(AD<double>);
 
+template <typename VectorT, typename ScalarT>
+ScalarT polyeval2(const VectorT &coeffs, ScalarT x)
+{
+  ScalarT result = 0.0;
+  for (int i = 0; i < coeffs.size(); ++i)
+  {
+    result += coeffs[i] * pow(x, i);
+  }
+  return result;
+}
+
 template <typename VarsVectorT>
-TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::size_t N, const double dt)
+TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::size_t N, const double dt, VectorXd coeffs)
 {
   TrajectoryCosts costs;
 
@@ -61,29 +73,27 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
   const ::std::size_t epsi_start{cte_start + N};
   const ::std::size_t delta_start{epsi_start + N};
   const ::std::size_t a_start{delta_start + (N - 1)};
-  const ::std::double_t ref_v{20.0};
-
-  ::std::vector<AD<double>> velocities;
-
-  velocities.push_back(vars[v_start]);
-
-  for (int k = 1; k < N; ++k)
-  {
-    velocities.push_back(velocities.back() + vars[a_start + k - 1] * dt);
-  }
-
-  ::std::cout << "velocities are: " << ::std::endl;
+  const ::std::double_t ref_v{10.0};
+  const ::std::double_t accel_rate{1.0};
 
   for (int k = 0; k < N; ++k)
   {
-    ::std::cout << velocities[k] << ", ";
+    const auto t_since_start = static_cast<double>(k) * dt;
+    auto t_to_reach_ref = (ref_v - vars[v_start]) / accel_rate;
 
-    const auto d_v_cost = ::CppAD::pow(velocities[k] - ref_v, 2);
-    const auto d_cte_cost = ::CppAD::pow(vars[cte_start + k], 2);
-    const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
+    if (t_to_reach_ref < 0)
+    {
+      t_to_reach_ref *= -1.0;
+    }
+
+    const auto adjusted_ref_v = t_since_start / t_to_reach_ref * (ref_v - vars[v_start]) + vars[v_start];
+    const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - adjusted_ref_v, 2);
+    // const auto d_cte_cost = ::CppAD::pow(vars[cte_start + k], 2);
+    const auto d_cte_cost = ::CppAD::pow(vars[y_start + k] - polyeval2(coeffs, vars[x_start + k]), 2);
+    // const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
     costs.velocity += d_v_cost;
     costs.cte += d_cte_cost;
-    costs.epsi += d_epsi_cost;
+    // costs.epsi += d_epsi_cost;
   }
 
   ::std::cout << ::std::endl;
@@ -132,6 +142,18 @@ public:
 
   void operator()(ADvector &fg, const ADvector &vars)
   {
+
+    //note: vars represents the state, not the constraints
+    //the elements in fg are:
+    // 1. f (the cost or objective function)
+    // 2. g (an R^n_constraints array of the constraint, which are to be calculated by the optimizer)
+
+    // we are essentially forcing the optimizer to calculate the values of things we need to calculate the cost by
+    // specifying the constraints.
+    // since the constraint upper and lower bounds are set to 0, we simply set the LHS to a difference of
+    // (VARIABLE STATE ELEMENT) - (PREDICTED VALUE) so that the optimizer is forced to set the VARIABLE STATE ELEMENT
+    // to the PREDICTED VALUE.
+
     fg[0] = 0;
 
     const ::std::size_t x_start{0};
@@ -143,11 +165,6 @@ public:
     const ::std::size_t delta_start{epsi_start + N_};
     const ::std::size_t a_start{delta_start + (N_ - 1)};
     const ::std::double_t ref_v{10.0};
-
-    AD<double> velocity_cost{0};
-    AD<double> cte_cost{0};
-    AD<double> epsi_cost{0};
-    AD<double> smooth_input_cost{0};
 
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -182,13 +199,13 @@ public:
       fg[1 + y_start + k] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt_);
       fg[1 + psi_start + k] = psi1 - (psi0 + v0 * delta0 / Lf * dt_);
       fg[1 + v_start + k] = v1 - (v0 + a0 * dt_);
-      fg[1 + cte_start + k] =
-          cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt_));
-      fg[1 + epsi_start + k] =
-          epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt_);
+      fg[1 + cte_start + k] = 0.0;
+      // cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt_));
+      fg[1 + epsi_start + k] = 0.0;
+      // epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt_);
     }
 
-    const auto costs = CalculateTrajectoryCosts(vars, N_, dt_);
+    const auto costs = CalculateTrajectoryCosts(vars, N_, dt_, coeffs);
 
     // PrintCostDebugInfo(costs);
 
@@ -284,7 +301,6 @@ MPC::~MPC() {}
 
   vars_lowerbound[epsi_start] = state(5);
   vars_upperbound[epsi_start] = state(5);
-  
 
   vars[x_start] = state(0);
   vars[y_start] = state(1);
@@ -302,6 +318,20 @@ MPC::~MPC() {}
     constraints_lowerbound[i] = 0;
     constraints_upperbound[i] = 0;
   }
+
+  constraints_lowerbound[x_start] = state(0);
+  constraints_lowerbound[y_start] = state(1);
+  constraints_lowerbound[psi_start] = state(2);
+  constraints_lowerbound[v_start] = state(3);
+  constraints_lowerbound[cte_start] = state(4);
+  constraints_lowerbound[epsi_start] = state(5);
+
+  constraints_upperbound[x_start] = state(0);
+  constraints_upperbound[y_start] = state(1);
+  constraints_upperbound[psi_start] = state(2);
+  constraints_upperbound[v_start] = state(3);
+  constraints_upperbound[cte_start] = state(4);
+  constraints_upperbound[epsi_start] = state(5);
 
   // object that computes objective and constraints
   FG_eval fg_eval(coeffs, N_, dt_);
@@ -358,7 +388,7 @@ MPC::~MPC() {}
 
   assert(x_vals.size() == y_vals.size());
 
-  const auto costs = CalculateTrajectoryCosts(solution.x, N_, dt_);
+  const auto costs = CalculateTrajectoryCosts(solution.x, N_, dt_, coeffs);
 
   PrintCostDebugInfo(costs);
 

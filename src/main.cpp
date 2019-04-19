@@ -149,6 +149,17 @@ int main()
           msgJson["next_x"] = ref_line_x__ego;
           msgJson["next_y"] = ref_line_y__ego;
 
+          static auto current = std::chrono::high_resolution_clock::now();
+          static auto last = std::chrono::high_resolution_clock::now();
+
+          current = std::chrono::high_resolution_clock::now();
+
+          ::std::cout << "current time: " << std::chrono::system_clock::to_time_t(current) << ::std::endl;
+          ::std::cout << "last time: " << std::chrono::system_clock::to_time_t(last) << ::std::endl;
+          ::std::cout << "time diff: " << std::chrono::duration<double, std::milli>(current - last).count() << ::std::endl;
+
+          last = current;
+
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           // std::cout << msg << std::endl;
           // Latency
