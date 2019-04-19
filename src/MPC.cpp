@@ -73,7 +73,7 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
   const ::std::size_t epsi_start{cte_start + N};
   const ::std::size_t delta_start{epsi_start + N};
   const ::std::size_t a_start{delta_start + (N - 1)};
-  const ::std::double_t ref_v{10.0};
+  const ::std::double_t ref_v{20.0};
   const ::std::double_t accel_rate{1.0};
 
   for (int k = 0; k < N; ++k)
