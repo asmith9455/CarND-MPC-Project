@@ -79,7 +79,7 @@ int main()
           state(0) = 0;
           state(1) = 0;
           state(2) = 0;
-          state(3) = 0;
+          state(3) = v;
           state(4) = ref_line_polynomial__ego(0);
           state(5) = -atan(ref_line_polynomial__ego[1]);
 
@@ -110,17 +110,17 @@ int main()
           std::cout << "steering command is: " << steer_cmd << std::endl;
           std::cout << "throttle command is: " << throttle_cmd << std::endl
                     << std::endl;
-          std::cout << "waypoints (global frame / ego frame) are: " << std::endl;
-          for (int i = 0; i < ref_line_x__global.size(); ++i)
-          {
-            std::cout << "-- (" << ref_line_x__global[i] << ", " << ref_line_y__global[i] << ")"
-                      << " ... ( " << ref_line_x__ego[i] << ", " << ref_line_y__ego[i] << ")" << std::endl;
-          }
-          std::cout << "mpc best path is: " << std::endl;
-          for (int i = 0; i < mpc_x_vals__ego.size(); ++i)
-          {
-            std::cout << " ( " << mpc_x_vals__ego[i] << ", " << mpc_y_vals__ego[i] << ")" << std::endl;
-          }
+          // std::cout << "waypoints (global frame / ego frame) are: " << std::endl;
+          // for (int i = 0; i < ref_line_x__global.size(); ++i)
+          // {
+          //   std::cout << "-- (" << ref_line_x__global[i] << ", " << ref_line_y__global[i] << ")"
+          //             << " ... ( " << ref_line_x__ego[i] << ", " << ref_line_y__ego[i] << ")" << std::endl;
+          // }
+          // std::cout << "mpc best path is: " << std::endl;
+          // for (int i = 0; i < mpc_x_vals__ego.size(); ++i)
+          // {
+          //   std::cout << " ( " << mpc_x_vals__ego[i] << ", " << mpc_y_vals__ego[i] << ")" << std::endl;
+          // }
 
           std::cout << std::endl;
           std::cout << "--------------------------------------------------" << std::endl;

@@ -6,6 +6,10 @@
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
 #include <numeric>
+#include <deque>
+// #include <matplotlibcpp.h>
+
+// namespace plt = matplotlibcpp;
 
 using CppAD::AD;
 using Eigen::VectorXd;
@@ -21,6 +25,8 @@ using Eigen::VectorXd;
 //
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
+const double reference_accel_rate = 1.0; //accelerate at 1 m/s/s to reach desired speed
+const double reference_speed = 10.0;     //desired speed
 
 struct TrajectoryCosts
 {
@@ -48,7 +54,8 @@ struct TrajectoryCosts
 
 using ADvector = CPPAD_TESTVECTOR(AD<double>);
 
-TrajectoryCosts CalculateTrajectoryCosts(const ADvector &vars, const ::std::size_t N)
+template <typename ContainerT>
+TrajectoryCosts CalculateTrajectoryCosts(const ContainerT &vars, const ::std::size_t N, const std::double_t dt)
 {
   TrajectoryCosts costs;
 
@@ -62,12 +69,33 @@ TrajectoryCosts CalculateTrajectoryCosts(const ADvector &vars, const ::std::size
   const ::std::size_t a_start{delta_start + (N - 1)};
   const ::std::double_t ref_v{10.0};
 
+  for (int k = 1; k < N; ++k)
+  {
+    const double t = dt * k;
+
+    //reconstruct current speed
+    auto predicted_speed_at_t = vars[v_start];
+    for (int i = 1; i <= k; ++i)
+    {
+      predicted_speed_at_t += vars[a_start + i - 1] * dt;
+    }
+    const auto current_speed = vars[v_start];
+
+    const auto current_speed_error = (reference_speed - current_speed);
+
+    const auto expected_time_to_achieve_ref_speed = current_speed_error / reference_accel_rate;
+    const auto time_ratio = t / expected_time_to_achieve_ref_speed;
+    const auto ref_speed_for_this_time = time_ratio * current_speed_error + current_speed;
+
+    const auto d_v_cost = ::CppAD::pow(predicted_speed_at_t - reference_speed, 2);
+    costs.velocity += d_v_cost;
+  }
+
   for (int k = 0; k < N; ++k)
   {
-    const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - ref_v, 2);
     const auto d_cte_cost = ::CppAD::pow(vars[cte_start + k], 2);
     const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
-    costs.velocity += d_v_cost;
+
     costs.cte += d_cte_cost;
     costs.epsi += d_epsi_cost;
   }
@@ -83,7 +111,7 @@ TrajectoryCosts CalculateTrajectoryCosts(const ADvector &vars, const ::std::size
   for (int k = 0; k < (N - 2); ++k)
   {
     const auto d_delta_smoothness = ::CppAD::pow(vars[delta_start + k + 1] - vars[delta_start + k], 2);
-    const auto d_accel_smoothness = ::CppAD::pow(vars[a_start + k + 1] - vars[a_start + k], 2);
+    const auto d_accel_smoothness = 1e4 * ::CppAD::pow(vars[a_start + k + 1] - vars[a_start + k], 2);
 
     costs.delta_smoothness += d_delta_smoothness;
     costs.accel_smoothness += d_accel_smoothness;
@@ -142,6 +170,8 @@ public:
 
     for (int k = 1; k < N_; ++k)
     {
+      /// as in quiz, calculate predictions based on optimizer inputs accel and delta
+      /// adapted from the code presented in the MPC lesson here: https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/338b458f-7ebf-449c-9ad1-611eb933b076/concepts/ee21948d-7fad-4821-b61c-0d69bbfcc425
       const AD<double> x1 = vars[x_start + k];
       const AD<double> y1 = vars[y_start + k];
       const AD<double> psi1 = vars[psi_start + k];
@@ -172,9 +202,9 @@ public:
           epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt_);
     }
 
-    const auto costs = CalculateTrajectoryCosts(vars, N_);
+    const auto costs = CalculateTrajectoryCosts(vars, N_, dt_);
 
-    PrintCostDebugInfo(costs);
+    // PrintCostDebugInfo(costs);
 
     fg[0] = costs.TotalCost();
   }
@@ -187,7 +217,9 @@ private:
 //
 // MPC class definition implementation.
 //
-MPC::MPC(::std::size_t N, ::std::double_t dt) : N_{N}, dt_{dt} {}
+MPC::MPC(::std::size_t N, ::std::double_t dt) : N_{N}, dt_{dt} {
+  // plt::figure_size(1200, 780);
+}
 MPC::~MPC() {}
 
 ::std::pair<double, double> MPC::Solve(const VectorXd &state, const VectorXd &coeffs, ::std::vector<double> &x_vals, ::std::vector<double> &y_vals)
@@ -238,9 +270,27 @@ MPC::~MPC() {}
 
   for (int i = 0; i < N_ - 1; ++i)
   {
-    vars_lowerbound[delta_start + i] = -Lf * 0.436332;
+    vars_lowerbound[delta_start + i] = Lf * 0.436332;
     vars_upperbound[delta_start + i] = Lf * 0.436332;
   }
+
+  vars_lowerbound[x_start] = state(0);
+  vars_upperbound[x_start] = state(0);
+
+  vars_lowerbound[y_start] = state(1);
+  vars_upperbound[y_start] = state(1);
+
+  vars_lowerbound[psi_start] = state(2);
+  vars_upperbound[psi_start] = state(2);
+
+  vars_lowerbound[v_start] = state(3);
+  vars_upperbound[v_start] = state(3);
+
+  vars_lowerbound[cte_start] = state(4);
+  vars_upperbound[cte_start] = state(4);
+
+  vars_lowerbound[epsi_start] = state(5);
+  vars_upperbound[epsi_start] = state(5);
 
   for (int i = 0; i < N_ - 1; ++i)
   {
@@ -323,9 +373,26 @@ MPC::~MPC() {}
 
   assert(x_vals.size() == y_vals.size());
 
-  // const auto costs = CalculateTrajectoryCosts(vars, N_);
+  const auto costs = CalculateTrajectoryCosts(solution.x, N_, dt_);
 
-  // PrintCostDebugInfo(costs);
+  PrintCostDebugInfo(costs);
+  
+  static std::deque<::std::double_t> vel_costs;
+
+  vel_costs.push_back(CppAD::Value(costs.velocity));
+
+  if (vel_costs.size() > 30)
+  {
+    vel_costs.pop_front();
+  }
+
+  std::cout << "velocity costs latest to oldest:" << std::endl;
+  for (auto it = vel_costs.rbegin(); it != vel_costs.rend(); ++it)
+  {
+    std::cout << *it << ", ";
+  }
+
+  // plt::plot(vel_costs);
 
   return {solution.x[delta_start], solution.x[a_start]};
 }
