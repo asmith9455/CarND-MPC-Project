@@ -122,7 +122,7 @@ int main()
           const double accel = commands.second;
           last_accel = accel;
           // const double throttle_cmd = clamp(accel + 0.2, -1.0, 1.0);
-          const double throttle_cmd = accel / 3.0;
+          const double throttle_cmd = accel;
 
           // -----------------------------------------------------
           // -----------------------------------------------------

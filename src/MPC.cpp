@@ -7,9 +7,12 @@
 #include "Eigen-3.3/Eigen/Core"
 #include <numeric>
 // #include "helpers.h"
+#include <matplotlibcpp.h>
 
 using CppAD::AD;
 using Eigen::VectorXd;
+
+namespace plt = matplotlibcpp;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -93,9 +96,15 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
     std::cout << "(" << adjusted_ref_v << ", " << vars[v_start + k] << "),";
     const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - adjusted_ref_v, 2);
     const auto d_cte_cost = ::CppAD::pow(vars[y_start + k] - polyeval2(coeffs, vars[x_start + k]), 2);
-    const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
+
+    const auto eps = 1e-4;
+    const auto reference_y_1 = polyeval2(coeffs, vars[x_start + k]);
+    const auto reference_y_2 = polyeval2(coeffs, vars[x_start + k] + eps);
+    const auto reference_psi = ::CppAD::atan2(::CppAD::AD<double>(reference_y_2 - reference_y_1), ::CppAD::AD<double>(eps));
+    const auto predicted_psi = vars[psi_start + k];
+    const auto d_epsi_cost = ::CppAD::pow(reference_psi - predicted_psi, 2);
     costs.velocity += d_v_cost;
-    costs.cte += 10.0*d_cte_cost;
+    costs.cte += 10.0 * d_cte_cost;
     costs.epsi += d_epsi_cost;
   }
 
@@ -435,6 +444,16 @@ MPC::~MPC() {}
     ::std::cout << solution.x[epsi_start + i] << ", ";
   }
   ::std::cout << ::std::endl;
+
+  static int plot_ctr = 0;
+
+  plt::plot({1, 3, 2, 4});
+  plt::show(false);
+
+  // if (plot_ctr > 100)
+  // {
+  // }
+  // ++plot_ctr;
 
   return {solution.x[delta_start], solution.x[a_start]};
 }
