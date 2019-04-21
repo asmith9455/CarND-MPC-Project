@@ -11,7 +11,7 @@
 using CppAD::AD;
 using Eigen::VectorXd;
 
-namespace plt = matplotlibcpp;
+// namespace plt = matplotlibcpp;
 
 // This value assumes the model presented in the classroom is used.
 //

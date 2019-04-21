@@ -3,7 +3,7 @@
 
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
-#include <matplotlibcpp.h>
+// #include <matplotlibcpp.h>
 
 class MPC
 {
@@ -23,8 +23,8 @@ private:
   ::std::double_t dt_;
   ::std::size_t plot_history_size_;
   ::std::vector<double> x_vals_;
-  ::matplotlibcpp::Plot delta_plot_;
-  ::matplotlibcpp::Plot accel_plot_;
+  // ::matplotlibcpp::Plot delta_plot_;
+  // ::matplotlibcpp::Plot accel_plot_;
 };
 
 #endif // MPC_H
