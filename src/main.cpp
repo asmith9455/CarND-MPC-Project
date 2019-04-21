@@ -100,11 +100,11 @@ int main()
           const ::std::double_t delay{0.1}; //seconds
           const double Lf = 2.67;
 
-          // state(0) = state(0) + state(3) * ::std::cos(state(2)) * delay;
-          // state(1) = state(1) + state(3) * ::std::sin(state(2)) * delay;
-          // state(2) = state(2) + state(3) * last_delta / Lf * delay;
-          // state(3) = state(3) + last_accel * delay;
-          // state(4) = ::std::pow(polyeval2(ref_line_polynomial__ego) - 
+          state(0) = state(0) + state(3) * ::std::cos(state(2)) * delay;
+          state(1) = state(1) + state(3) * ::std::sin(state(2)) * delay;
+          state(2) = state(2) + state(3) * last_delta / Lf * delay;
+          state(3) = state(3) + last_accel * delay;
+          // state(4) = ::std::pow(polyeval2(ref_line_polynomial__ego) - state(1));
 
           // -----------------------------------------------------
           // -----------------------------------------------------
@@ -121,7 +121,8 @@ int main()
           const double steer_cmd = -1.0 * delta / deg2rad(25.0);
           const double accel = commands.second;
           last_accel = accel;
-          const double throttle_cmd = accel;
+          // const double throttle_cmd = clamp(accel + 0.2, -1.0, 1.0);
+          const double throttle_cmd = accel / 3.0;
 
           // -----------------------------------------------------
           // -----------------------------------------------------
@@ -171,8 +172,22 @@ int main()
           msgJson["mpc_x"] = mpc_x_vals__ego;
           msgJson["mpc_y"] = mpc_y_vals__ego;
 
-          msgJson["next_x"] = ref_line_x__ego;
-          msgJson["next_y"] = ref_line_y__ego;
+          // msgJson["next_x"] = ref_line_x__ego;
+          // msgJson["next_y"] = ref_line_y__ego;
+
+          ::std::vector<double> reference_xs_from_poly__ego;
+          ::std::vector<double> reference_ys_from_poly__ego;
+
+          for (int i = 0; i < 10; ++i)
+          {
+            const double x = mpc_x_vals__ego.at(i);
+            const double y = polyeval(ref_line_polynomial__ego, x);
+            reference_xs_from_poly__ego.push_back(x);
+            reference_ys_from_poly__ego.push_back(y);
+          }
+
+          msgJson["next_x"] = reference_xs_from_poly__ego;
+          msgJson["next_y"] = reference_ys_from_poly__ego;
 
           static auto current = std::chrono::high_resolution_clock::now();
           static auto last = std::chrono::high_resolution_clock::now();

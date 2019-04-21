@@ -73,8 +73,10 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
   const ::std::size_t epsi_start{cte_start + N};
   const ::std::size_t delta_start{epsi_start + N};
   const ::std::size_t a_start{delta_start + (N - 1)};
-  const ::std::double_t ref_v{20.0};
+  const ::std::double_t ref_v{30.0};
   const ::std::double_t accel_rate{1.0};
+
+  ::std::cout << "velocities (ref/predicted): " << std::endl;
 
   for (int k = 0; k < N; ++k)
   {
@@ -87,13 +89,14 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
     }
 
     const auto adjusted_ref_v = t_since_start / t_to_reach_ref * (ref_v - vars[v_start]) + vars[v_start];
+
+    std::cout << "(" << adjusted_ref_v << ", " << vars[v_start + k] << "),";
     const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - adjusted_ref_v, 2);
-    // const auto d_cte_cost = ::CppAD::pow(vars[cte_start + k], 2);
     const auto d_cte_cost = ::CppAD::pow(vars[y_start + k] - polyeval2(coeffs, vars[x_start + k]), 2);
-    // const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
+    const auto d_epsi_cost = ::CppAD::pow(vars[epsi_start + k], 2);
     costs.velocity += d_v_cost;
-    costs.cte += d_cte_cost;
-    // costs.epsi += d_epsi_cost;
+    costs.cte += 10.0*d_cte_cost;
+    costs.epsi += d_epsi_cost;
   }
 
   ::std::cout << ::std::endl;
@@ -111,7 +114,7 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
     const auto d_delta_smoothness = ::CppAD::pow(vars[delta_start + k + 1] - vars[delta_start + k], 2);
     const auto d_accel_smoothness = ::CppAD::pow(vars[a_start + k + 1] - vars[a_start + k], 2);
 
-    costs.delta_smoothness += d_delta_smoothness;
+    costs.delta_smoothness += 100.0 * d_delta_smoothness;
     costs.accel_smoothness += d_accel_smoothness;
   }
 
