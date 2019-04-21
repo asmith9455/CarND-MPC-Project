@@ -7,7 +7,6 @@
 #include "Eigen-3.3/Eigen/Core"
 #include <numeric>
 // #include "helpers.h"
-#include <matplotlibcpp.h>
 
 using CppAD::AD;
 using Eigen::VectorXd;
@@ -77,7 +76,16 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
   const ::std::size_t delta_start{epsi_start + N};
   const ::std::size_t a_start{delta_start + (N - 1)};
   const ::std::double_t ref_v{30.0};
-  const ::std::double_t accel_rate{1.0};
+  ::std::double_t accel_rate{1.0};
+
+  if (::CppAD::abs(vars[v_start] - ref_v) < 2.0)
+  {
+    accel_rate = 0.3;
+  }
+  else if (::CppAD::abs(vars[v_start] - ref_v) < 5.0)
+  {
+    accel_rate = 0.5;
+  }
 
   ::std::cout << "velocities (ref/predicted): " << std::endl;
 
@@ -91,7 +99,12 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
       t_to_reach_ref *= -1.0;
     }
 
-    const auto adjusted_ref_v = t_since_start / t_to_reach_ref * (ref_v - vars[v_start]) + vars[v_start];
+    auto adjusted_ref_v = ::CppAD::AD<double>(ref_v);
+
+    if (t_since_start <= t_to_reach_ref)
+    {
+      adjusted_ref_v = t_since_start / t_to_reach_ref * (ref_v - vars[v_start]) + vars[v_start];
+    }
 
     std::cout << "(" << adjusted_ref_v << ", " << vars[v_start + k] << "),";
     const auto d_v_cost = ::CppAD::pow(vars[v_start + k] - adjusted_ref_v, 2);
@@ -241,7 +254,21 @@ private:
 //
 // MPC class definition implementation.
 //
-MPC::MPC(::std::size_t N, ::std::double_t dt) : N_{N}, dt_{dt} {}
+MPC::MPC(::std::size_t N, ::std::double_t dt) : N_{N}, dt_{dt}, plot_history_size_{100}
+{
+  // plt::title("Test Title");
+  // plt::show(false);
+  // delta_plot_ = matplotlibcpp::Plot("delta_plot");
+  // accel_plot_ = matplotlibcpp::Plot("accel_plot");
+  // ::std::vector<double> v1 = {0.0, 1.0, 2.0};
+  // ::std::vector<double> v2 = {0.0, 1.0, -1.0};
+  // delta_plot_.update<double>(v1, v2);
+
+  // plt::plot{0.0, 1.0, 2.0}, {0.0, 1.0, -1.0});
+
+  // plt::pause(0.1);
+  // plt::draw();
+}
 MPC::~MPC() {}
 
 ::std::pair<double, double> MPC::Solve(const VectorXd &state, const VectorXd &coeffs, ::std::vector<double> &x_vals, ::std::vector<double> &y_vals)
@@ -445,10 +472,51 @@ MPC::~MPC() {}
   }
   ::std::cout << ::std::endl;
 
-  static int plot_ctr = 0;
+  // static int plot_ctr = 0;
 
-  plt::plot({1, 3, 2, 4});
-  plt::show(false);
+  // static ::std::deque<double> deltas;
+  // // static ::std::deque<double> accels;
+
+  // deltas.push_back(solution.x[delta_start]);
+  // // accels.push_back(solution.x[a_start]);
+
+  // static const auto convertDequeToVector = [](const ::std::deque<double> &deque) {
+  //   ::std::vector<double> v;
+  //   for (const auto &d : deque)
+  //   {
+  //     v.push_back(d);
+  //   }
+
+  //   return v;
+  // };
+
+  // static int graph_ctr = 0;
+
+  // if (graph_ctr >= 0)
+  // {
+  //   x_vals_.clear();
+
+  //   for (int i = 0; i < deltas.size(); ++i)
+  //   {
+  //     x_vals_.push_back(i);
+  //   }
+
+  //   const auto deltas_vec = convertDequeToVector(deltas);
+
+  //   assert(deltas_vec.size() == x_vals_.size());
+
+  //   delta_plot_.update(x_vals_, deltas_vec);
+  //   // accel_plot_.update(x_vals_, convertDequeToVector(accels))
+  //   graph_ctr = 0;
+  // }
+
+  // ++graph_ctr;
+
+  // if (deltas.size() > plot_history_size_)
+  // {
+  //   deltas.pop_front();
+  //   // accels.pop_front();
+  // }
 
   // if (plot_ctr > 100)
   // {
