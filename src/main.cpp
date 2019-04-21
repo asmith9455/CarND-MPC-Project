@@ -23,12 +23,23 @@ constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
+template <typename VectorT, typename ScalarT>
+ScalarT polyeval2(const VectorT &coeffs, ScalarT x)
+{
+  ScalarT result = 0.0;
+  for (int i = 0; i < coeffs.size(); ++i)
+  {
+    result += coeffs[i] * pow(x, i);
+  }
+  return result;
+}
+
 int main()
 {
   uWS::Hub h;
 
   // MPC is initialized here!
-  MPC mpc{30, 0.1};
+  MPC mpc{10, 0.1};
 
   h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
@@ -83,6 +94,18 @@ int main()
           state(4) = ref_line_polynomial__ego(0);
           state(5) = -atan(ref_line_polynomial__ego[1]);
 
+          static ::std::double_t last_delta{0.0};
+          static ::std::double_t last_accel{0.0};
+
+          const ::std::double_t delay{0.1}; //seconds
+          const double Lf = 2.67;
+
+          // state(0) = state(0) + state(3) * ::std::cos(state(2)) * delay;
+          // state(1) = state(1) + state(3) * ::std::sin(state(2)) * delay;
+          // state(2) = state(2) + state(3) * last_delta / Lf * delay;
+          // state(3) = state(3) + last_accel * delay;
+          // state(4) = ::std::pow(polyeval2(ref_line_polynomial__ego) - 
+
           // -----------------------------------------------------
           // -----------------------------------------------------
 
@@ -94,8 +117,10 @@ int main()
           const auto commands = mpc.Solve(state, ref_line_polynomial__ego, mpc_x_vals__ego, mpc_y_vals__ego);
 
           const double delta = commands.first;
+          last_delta = delta;
           const double steer_cmd = -1.0 * delta / deg2rad(25.0);
           const double accel = commands.second;
+          last_accel = accel;
           const double throttle_cmd = accel;
 
           // -----------------------------------------------------
@@ -170,7 +195,7 @@ int main()
           //   around the track with 100ms latency.
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE SUBMITTING.
-          // std::this_thread::sleep_for(std::chrono::milliseconds(100)); ///@todo: be sure to uncomment and handle this before submitting
+          std::this_thread::sleep_for(std::chrono::milliseconds(100)); ///@todo: be sure to uncomment and handle this before submitting
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         } // end "telemetry" if
       }
