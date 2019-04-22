@@ -20,6 +20,7 @@ The state follows that introduced in the lectures. This includes x, y, psi, v, c
 
 The update equations are:
 
+```
 let k = j+1
 
 x_k = x_j + v_j * sin(psi_j)
@@ -28,6 +29,7 @@ psi_k = psi_j + v_j * (delta_j / LF) * dt
 v_k = v_j + a_j * dt
 cte_k = (f_j - y_j) + (v_j * CppAD::sin(epsi_j) * dt)
 epsi_k = (psi_j - psides_j) + v0 * delta0 / Lf * dt
+```
 
 Note that the fg vector is filled using the constraints, which for x is x_k - (x_j + v_j * sin(psi_j)). The others follow a similar pattern.
 
@@ -39,7 +41,7 @@ Note that in general, we want to choose values that are as small as possible for
 
 ## Polynomial Fitting and MPC Preprocessing
 
-A third order polynomial is fitted to the waypoints to enable easier calculation of CTE and Heading Error.
+A third order polynomial is fitted to the waypoints in the ego vehicle frame to enable easier calculation of CTE and Heading Error. The waypoints are supplied by the simulator in the world frame, and transformed to the ego frame using a standard coordinate frame transformation that is formed based on the telementry data supplied by the simulator (see TransformFromGlobalToEgo).
 
 No modification is made to the vehicle state, actuators, or waypoints prior to applying the MPC, other than the adjustment for Latency described in the next section.
 

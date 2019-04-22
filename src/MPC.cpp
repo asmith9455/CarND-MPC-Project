@@ -111,9 +111,11 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
     const auto d_cte_cost = ::CppAD::pow(vars[y_start + k] - polyeval2(coeffs, vars[x_start + k]), 2);
 
     const auto eps = 1e-4;
+    //calculate a secant on the reference polynomial and use it to estimate the reference orientation (reference_psi)
     const auto reference_y_1 = polyeval2(coeffs, vars[x_start + k]);
     const auto reference_y_2 = polyeval2(coeffs, vars[x_start + k] + eps);
     const auto reference_psi = ::CppAD::atan2(::CppAD::AD<double>(reference_y_2 - reference_y_1), ::CppAD::AD<double>(eps));
+    // compare the reference psi and the predicted psi (which is epsi, the heading error)
     const auto predicted_psi = vars[psi_start + k];
     const auto d_epsi_cost = ::CppAD::pow(reference_psi - predicted_psi, 2);
     costs.velocity += d_v_cost;
