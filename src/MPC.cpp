@@ -75,7 +75,7 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
   const ::std::size_t epsi_start{cte_start + N};
   const ::std::size_t delta_start{epsi_start + N};
   const ::std::size_t a_start{delta_start + (N - 1)};
-  const ::std::double_t ref_v{10.0};
+  const ::std::double_t ref_v{20.0 * 0.44704};
   ::std::double_t accel_rate{1.0};
 
   if (::CppAD::abs(vars[v_start] - ref_v) < 2.0)
@@ -219,8 +219,8 @@ public:
       const AD<double> delta0 = vars[delta_start + k - 1];
       const AD<double> a0 = vars[a_start + k - 1];
 
-      const AD<double> f0 = coeffs[0] + coeffs[1] * x0;
-      const AD<double> psides0 = CppAD::atan(coeffs[1]);
+      const AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * x0 * x0 + coeffs[3] * x0 * x0 * x0;
+      const AD<double> psides0 = CppAD::atan(coeffs[1] + 2.0 * coeffs[2] * x0 + 3.0 * coeffs[3] * x0 * x0);
 
       fg[1 + x_start + k] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt_);
       fg[1 + y_start + k] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt_);

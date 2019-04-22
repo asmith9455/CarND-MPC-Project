@@ -100,13 +100,26 @@ int main()
           const ::std::double_t delay{0.1}; //seconds
           const double Lf = 2.67;
 
-          state(0) = state(0) + state(3) * ::std::cos(state(2)) * delay;
-          state(1) = state(1) + state(3) * ::std::sin(state(2)) * delay;
-          state(2) = state(2) + state(3) * last_delta / Lf * delay;
-          state(3) = state(3) + last_accel * delay;
-          state(4) = polyeval(ref_line_polynomial__ego, state(0)) - state(1); //predicted cross track error
-          state(5) = (state(2) - atan(ref_line_polynomial__ego(1))) + state(3) * last_delta / Lf * delay; //predicted epsi
-          // state(5) = 0.0
+          const ::std::double_t initial_psi{0.0};
+
+          const ::std::double_t x_i = 0.0;
+          const ::std::double_t y_i = 0.0;
+          const ::std::double_t psi_i = 0.0;
+          const ::std::double_t v_i = v * 0.44704;
+          const ::std::double_t cte_i = polyeval(ref_line_polynomial__ego, 0.0);
+          const ::std::double_t epsi_i = psi_i - atan(ref_line_polynomial__ego(1));
+
+          //calculate predicted values:
+
+          ::std::double_t current_delta = j[1]["steering_angle"];
+          current_delta *= -1.0;
+
+          state(0) = x_i + v_i * ::std::cos(initial_psi) * delay;
+          state(1) = y_i + v_i * ::std::sin(initial_psi) * delay;
+          state(2) = psi_i + v_i * current_delta / Lf * delay;
+          state(3) = v_i + last_accel * delay;
+          state(4) = cte_i + v_i * ::std::sin(epsi_i) * delay; //predicted cross track error
+          state(5) = epsi_i + v_i * current_delta * delay / Lf ; //predicted epsi
 
           // -----------------------------------------------------
           // -----------------------------------------------------
