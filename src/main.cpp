@@ -104,7 +104,9 @@ int main()
           state(1) = state(1) + state(3) * ::std::sin(state(2)) * delay;
           state(2) = state(2) + state(3) * last_delta / Lf * delay;
           state(3) = state(3) + last_accel * delay;
-          // state(4) = ::std::pow(polyeval2(ref_line_polynomial__ego) - state(1));
+          state(4) = polyeval(ref_line_polynomial__ego, state(0)) - state(1); //predicted cross track error
+          state(5) = (state(2) - atan(ref_line_polynomial__ego(1))) + state(3) * last_delta / Lf * delay; //predicted epsi
+          // state(5) = 0.0
 
           // -----------------------------------------------------
           // -----------------------------------------------------

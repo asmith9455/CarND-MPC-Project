@@ -75,12 +75,12 @@ TrajectoryCosts CalculateTrajectoryCosts(const VarsVectorT &vars, const ::std::s
   const ::std::size_t epsi_start{cte_start + N};
   const ::std::size_t delta_start{epsi_start + N};
   const ::std::size_t a_start{delta_start + (N - 1)};
-  const ::std::double_t ref_v{30.0};
+  const ::std::double_t ref_v{10.0};
   ::std::double_t accel_rate{1.0};
 
   if (::CppAD::abs(vars[v_start] - ref_v) < 2.0)
   {
-    accel_rate = 0.3;
+    accel_rate = 0.1;
   }
   else if (::CppAD::abs(vars[v_start] - ref_v) < 5.0)
   {
@@ -189,7 +189,6 @@ public:
     const ::std::size_t epsi_start{cte_start + N_};
     const ::std::size_t delta_start{epsi_start + N_};
     const ::std::size_t a_start{delta_start + (N_ - 1)};
-    // const ::std::double_t ref_v{10.0};
 
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -198,45 +197,35 @@ public:
     fg[1 + cte_start] = vars[cte_start];
     fg[1 + epsi_start] = vars[epsi_start];
 
-    //account for 0.1s latency - option 1
-    // fg[1 + x_start + 1] = vars[x_start + 1] - vars[x_start];
-    // fg[1 + y_start + 1] = vars[y_start + 1] - vars[y_start];
-    // fg[1 + psi_start + 1] = vars[psi_start + 1] - vars[psi_start];
-    // fg[1 + v_start + 1] = vars[v_start + 1] - vars[v_start];
-    // fg[1 + cte_start + 1] = vars[cte_start + 1] - vars[cte_start];
-    // fg[1 + epsi_start + 1] = vars[epsi_start + 1] - vars[epsi_start];
-
     for (int k = 1; k < N_; ++k)
     {
       const AD<double> x1 = vars[x_start + k];
       const AD<double> y1 = vars[y_start + k];
       const AD<double> psi1 = vars[psi_start + k];
       const AD<double> v1 = vars[v_start + k];
-      // const AD<double> cte1 = vars[cte_start + k];
-      // const AD<double> epsi1 = vars[epsi_start + k];
+      const AD<double> cte1 = vars[cte_start + k];
+      const AD<double> epsi1 = vars[epsi_start + k];
 
       const AD<double> x0 = vars[x_start + k - 1];
       const AD<double> y0 = vars[y_start + k - 1];
       const AD<double> psi0 = vars[psi_start + k - 1];
       const AD<double> v0 = vars[v_start + k - 1];
-      // const AD<double> cte0 = vars[cte_start + k - 1];
-      // const AD<double> epsi0 = vars[epsi_start + k - 1];
+      const AD<double> cte0 = vars[cte_start + k - 1];
+      const AD<double> epsi0 = vars[epsi_start + k - 1];
 
       // option 1 for latency compensation: account for delays in the model by using the command from 2 time steps back
       const AD<double> delta0 = vars[delta_start + k - 1];
       const AD<double> a0 = vars[a_start + k - 1];
 
-      // const AD<double> f0 = coeffs[0] + coeffs[1] * x0;
-      // const AD<double> psides0 = CppAD::atan(coeffs[1]);
+      const AD<double> f0 = coeffs[0] + coeffs[1] * x0;
+      const AD<double> psides0 = CppAD::atan(coeffs[1]);
 
       fg[1 + x_start + k] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt_);
       fg[1 + y_start + k] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt_);
       fg[1 + psi_start + k] = psi1 - (psi0 + v0 * delta0 / Lf * dt_);
       fg[1 + v_start + k] = v1 - (v0 + a0 * dt_);
-      fg[1 + cte_start + k] = 0.0;
-      // cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt_));
-      fg[1 + epsi_start + k] = 0.0;
-      // epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt_);
+      fg[1 + cte_start + k] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt_));
+      fg[1 + epsi_start + k] = epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt_);
     }
 
     const auto costs = CalculateTrajectoryCosts(vars, N_, dt_, coeffs);

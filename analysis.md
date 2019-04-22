@@ -18,11 +18,24 @@ The state follows that introduced in the lectures. This includes x, y, psi, v, c
 | cte      | The cross track error of the planned path relative to the reference path |
 | epsi     | The heading error of the planned path relative to the reference path |
 
-Note that While I retained cte and epsi in the state, I used them only to compute the cost, so they technically do not need to be in the state. Indeed, in the FG_eval implementation, I fill the corresponding entries in the fg vector simply to satisfy the constraints. The actual CTEs and Epislons (Psi Errors) are computed in the cost function calculation only. 
+The update equations are:
+
+let k = j+1
+
+x_k = x_j + v_j * sin(psi_j)
+y_k = y_j + v_j * sin(psi_j)
+psi_k = psi_j + v_j * (delta_j / LF) * dt
+v_k = v_j + a_j * dt
+cte_k = (f_j - y_j) + (v_j * CppAD::sin(epsi_j) * dt)
+epsi_k = (psi_j - psides_j) + v0 * delta0 / Lf * dt
+
+Note that the fg vector is filled using the constraints, which for x is x_k - (x_j + v_j * sin(psi_j)). The others follow a similar pattern.
 
 ## Timestep Length and Elasped Duration (N & dt)
 
 I started with N 100 and dt 0.1, but found that this was projecting too far into the distance. I settled on N 100 and dt 0.1, since this provided a reasonable lookahead distance and planning resolution. Also, 10 prediction points is much easier to debug using text printouts than 30 or even 20 prediction points. I also wanted to ensure not to project too far because the projection distance is proportional to speed. In case I wanted to adjust the speed to 50 or 60 mph, I didn't want to have any problem with fitting a polynomial to a data set that was not one to one, or with projected too far so that the model becomes too inaccurate.
+
+Note that in general, we want to choose values that are as small as possible for dt and as large as possible for N, such that the desired horizon is covered and we do not induce too much compuatational load.
 
 ## Polynomial Fitting and MPC Preprocessing
 
